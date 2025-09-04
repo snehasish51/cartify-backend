@@ -2,7 +2,6 @@ const express = require("express");
 const cors = require("cors");
 const admin = require("firebase-admin");
 
-
 const serviceAccount = JSON.parse(process.env.FIREBASE_KEY);
 
 admin.initializeApp({
@@ -15,7 +14,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-
+/**
+ * Middleware to verify Firebase ID token
+ */
 const verifyToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -32,6 +33,8 @@ const verifyToken = async (req, res, next) => {
     return res.status(401).json({ error: "Invalid or expired token" });
   }
 };
+
+// ---------------- ROUTES ----------------
 
 // Test route
 app.get("/", (req, res) => {
@@ -50,6 +53,48 @@ app.get("/categories", async (req, res) => {
   } catch (error) {
     console.error("Error fetching categories:", error);
     res.status(500).send("Error fetching categories");
+  }
+});
+
+// Public: Create a new user
+app.post("/users", async (req, res) => {
+  try {
+    const { email, password, firstName, lastName } = req.body;
+    if (!email || !password || !firstName || !lastName) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    // Create Firebase Auth user
+    const userRecord = await admin.auth().createUser({
+      email,
+      password,
+      displayName: `${firstName} ${lastName}`,
+    });
+
+    const uid = userRecord.uid;
+
+    // Create Firestore document
+    await db.collection("users").doc(uid).set({
+      firstName,
+      lastName,
+      email,
+      phone: "",
+      cart: [],
+      wishlist: [],
+      addresses: [],
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    const userDoc = await db.collection("users").doc(uid).get();
+
+    res.status(201).json({
+      message: "User created",
+      uid,
+      user: { id: uid, ...userDoc.data() },
+    });
+  } catch (error) {
+    console.error("Error creating user:", error);
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -73,7 +118,7 @@ app.get("/users/me", verifyToken, async (req, res) => {
   }
 });
 
-// Protected: Update  user
+// Protected: Update current user
 app.patch("/users/me", verifyToken, async (req, res) => {
   try {
     const uid = req.user.uid;
@@ -111,7 +156,7 @@ app.patch("/users/me", verifyToken, async (req, res) => {
   }
 });
 
-// Start server...
+// ---------------- START SERVER ----------------
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
