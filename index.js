@@ -156,6 +156,63 @@ app.patch("/users/me", verifyToken, async (req, res) => {
   }
 });
 
+// Public: Add a new product
+app.post("/products", async (req, res) => {
+  try {
+    const {
+      id,
+      name,
+      description,
+      categoryId,
+      subcategoryId,
+      typeId,
+      subtypeId,
+      price,
+      discountType,
+      discountValue,
+      packOf,
+      images,
+      variants,
+      attributes,
+      rating,
+    } = req.body;
+
+    const productId = id || `prod_${Date.now()}`;
+
+    const productData = {
+      id: productId,
+      name,
+      description: description || "",
+      categoryId,
+      subcategoryId,
+      typeId,
+      subtypeId: subtypeId || null,
+      price,
+      discountType: discountType || null,
+      discountValue: discountValue || 0,
+      packOf: packOf || 1,
+      images: images || [],
+      variants: variants || [],
+      attributes: attributes || [],
+      rating: rating || 0,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    await db.collection("products").doc(productId).set(productData);
+
+    res.status(201).json({
+      message: "Product added successfully",
+      product: productData,
+    });
+  } catch (error) {
+    console.error("Error adding product:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+
 // ---------------- START SERVER ----------------
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
